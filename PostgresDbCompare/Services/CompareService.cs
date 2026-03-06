@@ -168,5 +168,16 @@ namespace PostgresDbCompare.Services
 
             return result.ToString();
         }
+
+        public async Task TransferData(
+    string sourceConnection,
+    string targetConnection,
+    List<string> tables)
+        {
+            await _databaseService.TransferData(
+                sourceConnection,
+                targetConnection,
+                tables);
+        }
     }
 }

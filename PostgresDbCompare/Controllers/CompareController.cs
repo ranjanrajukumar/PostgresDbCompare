@@ -32,6 +32,9 @@ namespace PostgresDbCompare.Controllers
             return $"Host={host};Port={port};Database={database};Username={username};Password={password};Pooling=true;";
         }
 
+        // ---------------------------
+        // COMPARE DATABASES
+        // ---------------------------
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Compare(DbConnectionModel model)
@@ -55,8 +58,13 @@ namespace PostgresDbCompare.Controllers
                     model.TargetUsername,
                     model.TargetPassword);
 
+                // Save connections in session for later use (Data Transfer)
+                HttpContext.Session.SetString("SourceConnection", sourceConnection);
+                HttpContext.Session.SetString("TargetConnection", targetConnection);
+
                 var result = await _compareService.Compare(sourceConnection, targetConnection);
 
+                ViewBag.SourceConnection = sourceConnection;
                 ViewBag.TargetConnection = targetConnection;
 
                 return View("Result", result);
@@ -71,7 +79,9 @@ namespace PostgresDbCompare.Controllers
             }
         }
 
-
+        // ---------------------------
+        // TRANSFER SCHEMA OBJECTS
+        // ---------------------------
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> TransferObjects(
@@ -81,7 +91,7 @@ namespace PostgresDbCompare.Controllers
             List<string>? selectedViews,
             List<string>? selectedFunctions)
         {
-            if (string.IsNullOrEmpty(script) || string.IsNullOrEmpty(connection))
+            if (string.IsNullOrWhiteSpace(script) || string.IsNullOrWhiteSpace(connection))
             {
                 TempData["error"] = "Invalid migration request.";
                 return RedirectToAction("Index");

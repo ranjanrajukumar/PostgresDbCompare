@@ -4,7 +4,10 @@ namespace PostgresDbCompare.Services
 {
     public class DatabaseService
     {
+
+        // -------------------------
         // SCHEMAS
+        // -------------------------
         public async Task<List<string>> GetSchemas(string connection)
         {
             var schemas = new List<string>();
@@ -27,7 +30,10 @@ namespace PostgresDbCompare.Services
         }
 
 
+
+        // -------------------------
         // TABLES
+        // -------------------------
         public async Task<List<string>> GetTables(string connection)
         {
             var tables = new List<string>();
@@ -51,7 +57,10 @@ namespace PostgresDbCompare.Services
         }
 
 
+
+        // -------------------------
         // VIEWS
+        // -------------------------
         public async Task<List<string>> GetViews(string connection)
         {
             var views = new List<string>();
@@ -74,7 +83,10 @@ namespace PostgresDbCompare.Services
         }
 
 
+
+        // -------------------------
         // FUNCTIONS
+        // -------------------------
         public async Task<List<string>> GetFunctions(string connection)
         {
             var functions = new List<string>();
@@ -97,7 +109,10 @@ namespace PostgresDbCompare.Services
         }
 
 
+
+        // -------------------------
         // COLUMNS
+        // -------------------------
         public async Task<List<string>> GetColumns(string connection)
         {
             var columns = new List<string>();
@@ -120,7 +135,10 @@ namespace PostgresDbCompare.Services
         }
 
 
+
+        // -------------------------
         // INDEXES
+        // -------------------------
         public async Task<List<string>> GetIndexes(string connection)
         {
             var indexes = new List<string>();
@@ -143,7 +161,10 @@ namespace PostgresDbCompare.Services
         }
 
 
+
+        // -------------------------
         // CONSTRAINTS
+        // -------------------------
         public async Task<List<string>> GetConstraints(string connection)
         {
             var constraints = new List<string>();
@@ -167,7 +188,10 @@ namespace PostgresDbCompare.Services
         }
 
 
+
+        // -------------------------
         // GENERATE TABLE SCRIPT
+        // -------------------------
         public async Task<string> GetTableScript(string connection, string schema, string table)
         {
             using var conn = new NpgsqlConnection(connection);
@@ -208,6 +232,70 @@ namespace PostgresDbCompare.Services
             var result = await cmd.ExecuteScalarAsync();
 
             return result?.ToString() ?? "";
+        }
+
+
+
+        // -------------------------
+        // TRANSFER TABLE DATA
+        // -------------------------
+        public async Task TransferData(
+            string sourceConnection,
+            string targetConnection,
+            List<string> tables)
+        {
+            using var sourceConn = new NpgsqlConnection(sourceConnection);
+            using var targetConn = new NpgsqlConnection(targetConnection);
+
+            await sourceConn.OpenAsync();
+            await targetConn.OpenAsync();
+
+            using var transaction = await targetConn.BeginTransactionAsync();
+
+            try
+            {
+                foreach (var table in tables)
+                {
+                    var selectCmd = new NpgsqlCommand($"SELECT * FROM {table}", sourceConn);
+
+                    using var reader = await selectCmd.ExecuteReaderAsync();
+
+                    var columns = Enumerable.Range(0, reader.FieldCount)
+                        .Select(reader.GetName)
+                        .ToList();
+
+                    while (await reader.ReadAsync())
+                    {
+                        var parameters = new List<string>();
+                        var cmd = new NpgsqlCommand();
+                        cmd.Connection = targetConn;
+                        cmd.Transaction = transaction;
+
+                        for (int i = 0; i < reader.FieldCount; i++)
+                        {
+                            var paramName = "@p" + i;
+                            parameters.Add(paramName);
+
+                            cmd.Parameters.AddWithValue(paramName,
+                                reader[i] == DBNull.Value ? DBNull.Value : reader[i]);
+                        }
+
+                        cmd.CommandText =
+                            $"INSERT INTO {table} ({string.Join(",", columns)}) VALUES ({string.Join(",", parameters)})";
+
+                        await cmd.ExecuteNonQueryAsync();
+                    }
+
+                    reader.Close();
+                }
+
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
         }
     }
 }

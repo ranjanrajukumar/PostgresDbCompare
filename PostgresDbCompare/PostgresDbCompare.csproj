@@ -8,13 +8,9 @@
 
   <ItemGroup>
     <Compile Remove="Views\Compaire\**" />
-    <Compile Remove="Views\NewFolder\**" />
     <Content Remove="Views\Compaire\**" />
-    <Content Remove="Views\NewFolder\**" />
     <EmbeddedResource Remove="Views\Compaire\**" />
-    <EmbeddedResource Remove="Views\NewFolder\**" />
     <None Remove="Views\Compaire\**" />
-    <None Remove="Views\NewFolder\**" />
   </ItemGroup>
 
   <ItemGroup>
