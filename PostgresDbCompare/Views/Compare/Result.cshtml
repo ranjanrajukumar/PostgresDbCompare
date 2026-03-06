@@ -10,7 +10,7 @@
 
     <div class="row g-4">
 
-        <!-- Tables -->
+        <!-- Missing Tables -->
         <div class="col-md-4">
             <div class="card shadow border-0">
                 <div class="card-header bg-primary text-white">
@@ -26,14 +26,16 @@
                     }
                     else
                     {
-                        <li class="list-group-item text-success">No Missing Tables</li>
+                        <li class="list-group-item text-success">
+                            No Missing Tables
+                        </li>
                     }
                 </ul>
             </div>
         </div>
 
 
-        <!-- Columns -->
+        <!-- Missing Columns -->
         <div class="col-md-4">
             <div class="card shadow border-0">
                 <div class="card-header bg-secondary text-white">
@@ -49,14 +51,16 @@
                     }
                     else
                     {
-                        <li class="list-group-item text-success">No Missing Columns</li>
+                        <li class="list-group-item text-success">
+                            No Missing Columns
+                        </li>
                     }
                 </ul>
             </div>
         </div>
 
 
-        <!-- Views -->
+        <!-- Missing Views -->
         <div class="col-md-4">
             <div class="card shadow border-0">
                 <div class="card-header bg-warning">
@@ -72,14 +76,16 @@
                     }
                     else
                     {
-                        <li class="list-group-item text-success">No Missing Views</li>
+                        <li class="list-group-item text-success">
+                            No Missing Views
+                        </li>
                     }
                 </ul>
             </div>
         </div>
 
 
-        <!-- Functions -->
+        <!-- Missing Functions -->
         <div class="col-md-4">
             <div class="card shadow border-0">
                 <div class="card-header bg-danger text-white">
@@ -95,14 +101,16 @@
                     }
                     else
                     {
-                        <li class="list-group-item text-success">No Missing Functions</li>
+                        <li class="list-group-item text-success">
+                            No Missing Functions
+                        </li>
                     }
                 </ul>
             </div>
         </div>
 
 
-        <!-- Indexes -->
+        <!-- Missing Indexes -->
         <div class="col-md-4">
             <div class="card shadow border-0">
                 <div class="card-header bg-info text-white">
@@ -118,14 +126,16 @@
                     }
                     else
                     {
-                        <li class="list-group-item text-success">No Missing Indexes</li>
+                        <li class="list-group-item text-success">
+                            No Missing Indexes
+                        </li>
                     }
                 </ul>
             </div>
         </div>
 
 
-        <!-- Constraints -->
+        <!-- Missing Constraints -->
         <div class="col-md-4">
             <div class="card shadow border-0">
                 <div class="card-header bg-dark text-white">
@@ -141,7 +151,9 @@
                     }
                     else
                     {
-                        <li class="list-group-item text-success">No Missing Constraints</li>
+                        <li class="list-group-item text-success">
+                            No Missing Constraints
+                        </li>
                     }
                 </ul>
             </div>
@@ -150,30 +162,53 @@
     </div>
 
 
-    <!-- SQL Script -->
+    <!-- Generated SQL Script -->
     <div class="mt-5">
-        <h4 class="text-primary">Generated Migration Script</h4>
+
+        <h4 class="text-primary">
+            Generated Migration Script
+        </h4>
 
         <textarea class="form-control" rows="10" readonly>
 @Model.GeneratedScript
         </textarea>
+
     </div>
 
 
-    <!-- Buttons -->
+    <!-- Transfer Button -->
     <div class="text-center mt-4">
 
         <form asp-controller="Compare" asp-action="TransferObjects" method="post">
 
-            <button class="btn btn-success btn-lg px-5">
+            @Html.AntiForgeryToken()
+
+            <!-- Send Script -->
+            <input type="hidden"
+                   name="script"
+                   value="@Model.GeneratedScript" />
+
+            <!-- Send Target Connection -->
+            <input type="hidden"
+                   name="connection"
+                   value="@ViewBag.TargetConnection" />
+
+            <button type="submit"
+                    class="btn btn-success btn-lg px-5">
+
                 🚀 Transfer Missing Objects
+
             </button>
 
         </form>
 
-        <a asp-controller="Compare" asp-action="Index"
+
+        <a asp-controller="Compare"
+           asp-action="Index"
            class="btn btn-secondary btn-lg ms-3">
+
             Back
+
         </a>
 
     </div>

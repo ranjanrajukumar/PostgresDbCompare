@@ -53,13 +53,30 @@ namespace PostgresDbCompare.Controllers
 
                 var result = await _compareService.Compare(sourceConnection, targetConnection);
 
+                ViewBag.TargetConnection = targetConnection;
+
                 return View("Result", result);
             }
             catch (Exception ex)
             {
-                ModelState.AddModelError("", "Database comparison failed : " + ex.Message);
+                ModelState.AddModelError("", "Database comparison failed: " + ex.Message);
                 return View("Index", model);
             }
+        }
+
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> TransferObjects(string script, string connection)
+        {
+            if (string.IsNullOrEmpty(script))
+                return RedirectToAction("Index");
+
+            await _compareService.ExecuteScript(script, connection);
+
+            TempData["msg"] = "Objects transferred successfully";
+
+            return RedirectToAction("Index");
         }
     }
 }

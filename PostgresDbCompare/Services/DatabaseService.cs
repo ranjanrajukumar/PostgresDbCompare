@@ -165,5 +165,49 @@ namespace PostgresDbCompare.Services
 
             return constraints;
         }
+
+
+        // GENERATE TABLE SCRIPT
+        public async Task<string> GetTableScript(string connection, string schema, string table)
+        {
+            using var conn = new NpgsqlConnection(connection);
+            await conn.OpenAsync();
+
+            var sql = @"
+                SELECT 
+                    'CREATE TABLE ' || table_schema || '.' || table_name || E' (\n' ||
+                    string_agg(
+                        column_name || ' ' || data_type ||
+                        CASE 
+                            WHEN character_maximum_length IS NOT NULL 
+                            THEN '(' || character_maximum_length || ')'
+                            ELSE ''
+                        END ||
+                        CASE 
+                            WHEN is_nullable = 'NO' 
+                            THEN ' NOT NULL'
+                            ELSE ''
+                        END ||
+                        CASE 
+                            WHEN column_default IS NOT NULL 
+                            THEN ' DEFAULT ' || column_default
+                            ELSE ''
+                        END,
+                        E',\n'
+                    ) || E'\n);'
+                FROM information_schema.columns
+                WHERE table_schema = @schema
+                AND table_name = @table
+                GROUP BY table_schema, table_name";
+
+            using var cmd = new NpgsqlCommand(sql, conn);
+
+            cmd.Parameters.AddWithValue("@schema", schema);
+            cmd.Parameters.AddWithValue("@table", table);
+
+            var result = await cmd.ExecuteScalarAsync();
+
+            return result?.ToString() ?? "";
+        }
     }
 }

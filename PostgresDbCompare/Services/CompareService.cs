@@ -1,4 +1,7 @@
 ﻿using PostgresDbCompare.Models;
+using Npgsql;
+using System.Text;
+using System.Text.RegularExpressions;
 
 namespace PostgresDbCompare.Services
 {
@@ -15,101 +18,120 @@ namespace PostgresDbCompare.Services
         {
             var result = new CompareResultModel();
 
-            // 1️⃣ Compare Schemas
+            // Schemas
             var sourceSchemas = await _databaseService.GetSchemas(source);
             var targetSchemas = await _databaseService.GetSchemas(target);
+            result.MissingSchemas = sourceSchemas.Except(targetSchemas).ToList();
 
-            result.MissingSchemas = sourceSchemas
-                .Except(targetSchemas)
-                .ToList();
-
-            // 2️⃣ Compare Tables
+            // Tables
             var sourceTables = await _databaseService.GetTables(source);
             var targetTables = await _databaseService.GetTables(target);
+            result.MissingTables = sourceTables.Except(targetTables).ToList();
 
-            result.MissingTables = sourceTables
-                .Except(targetTables)
-                .ToList();
-
-            // 3️⃣ Compare Columns
+            // Columns
             var sourceColumns = await _databaseService.GetColumns(source);
             var targetColumns = await _databaseService.GetColumns(target);
+            result.MissingColumns = sourceColumns.Except(targetColumns).ToList();
 
-            result.MissingColumns = sourceColumns
-                .Except(targetColumns)
-                .ToList();
-
-            // 4️⃣ Compare Indexes
+            // Indexes
             var sourceIndexes = await _databaseService.GetIndexes(source);
             var targetIndexes = await _databaseService.GetIndexes(target);
+            result.MissingIndexes = sourceIndexes.Except(targetIndexes).ToList();
 
-            result.MissingIndexes = sourceIndexes
-                .Except(targetIndexes)
-                .ToList();
-
-            // 5️⃣ Compare Constraints
+            // Constraints
             var sourceConstraints = await _databaseService.GetConstraints(source);
             var targetConstraints = await _databaseService.GetConstraints(target);
+            result.MissingConstraints = sourceConstraints.Except(targetConstraints).ToList();
 
-            result.MissingConstraints = sourceConstraints
-                .Except(targetConstraints)
-                .ToList();
-
-            // 6️⃣ Compare Views
+            // Views
             var sourceViews = await _databaseService.GetViews(source);
             var targetViews = await _databaseService.GetViews(target);
+            result.MissingViews = sourceViews.Except(targetViews).ToList();
 
-            result.MissingViews = sourceViews
-                .Except(targetViews)
-                .ToList();
-
-            // 7️⃣ Compare Functions
+            // Functions
             var sourceFunctions = await _databaseService.GetFunctions(source);
             var targetFunctions = await _databaseService.GetFunctions(target);
+            result.MissingFunctions = sourceFunctions.Except(targetFunctions).ToList();
 
-            result.MissingFunctions = sourceFunctions
-                .Except(targetFunctions)
-                .ToList();
-
-            // Generate Migration Script
-            result.GeneratedScript = GenerateMigrationScript(result);
+            result.GeneratedScript = await GenerateMigrationScript(result, source);
 
             return result;
         }
 
 
-        private string GenerateMigrationScript(CompareResultModel result)
+        private async Task<string> GenerateMigrationScript(
+            CompareResultModel result,
+            string sourceConnection)
         {
-            var script = "";
+            var script = new StringBuilder();
 
-            // Create Schemas first
+            // SCHEMAS
             foreach (var schema in result.MissingSchemas)
             {
-                script += $"CREATE SCHEMA IF NOT EXISTS {schema};\n\n";
+                script.AppendLine($"CREATE SCHEMA IF NOT EXISTS {schema};");
+                script.AppendLine();
             }
 
-            // Create Tables
+            // TABLES
             foreach (var table in result.MissingTables)
             {
-                script += $"-- Create Table\n";
-                script += $"CREATE TABLE {table} (...);\n\n";
+                var parts = table.Split('.');
+
+                if (parts.Length != 2)
+                    continue;
+
+                var schema = parts[0];
+                var tableName = parts[1];
+
+                script.AppendLine($"-- Create Table {table}");
+
+                var tableScript = await _databaseService.GetTableScript(
+                    sourceConnection,
+                    schema,
+                    tableName);
+
+                if (!string.IsNullOrEmpty(tableScript))
+                {
+                    // Remove problematic nextval sequence defaults
+                    tableScript = Regex.Replace(
+                        tableScript,
+                        @"DEFAULT nextval\('.*?'\:\:regclass\)",
+                        "",
+                        RegexOptions.IgnoreCase);
+
+                    script.AppendLine(tableScript);
+                }
+
+                script.AppendLine();
             }
 
-            // Create Views
+            // VIEWS
             foreach (var view in result.MissingViews)
             {
-                script += $"-- Create View\n";
-                script += $"CREATE VIEW {view} AS ...;\n\n";
+                script.AppendLine($"-- Create View {view}");
+                script.AppendLine($"CREATE VIEW {view} AS SELECT * FROM ...;");
+                script.AppendLine();
             }
 
-            // Create Functions
+            // FUNCTIONS
             foreach (var fn in result.MissingFunctions)
             {
-                script += $"-- Create Function\n";
-                script += $"CREATE FUNCTION {fn}();\n\n";
+                script.AppendLine($"-- Create Function {fn}");
+                script.AppendLine($"CREATE FUNCTION {fn}() RETURNS void AS $$ BEGIN END; $$ LANGUAGE plpgsql;");
+                script.AppendLine();
             }
 
-            return script;
+            return script.ToString();
+        }
+
+
+        public async Task ExecuteScript(string script, string connection)
+        {
+            using var conn = new NpgsqlConnection(connection);
+            await conn.OpenAsync();
+
+            using var cmd = new NpgsqlCommand(script, conn);
+            await cmd.ExecuteNonQueryAsync();
         }
     }
 }
