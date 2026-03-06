@@ -7,10 +7,14 @@ namespace PostgresDbCompare.Controllers
     public class CompareController : Controller
     {
         private readonly CompareService _compareService;
+        private readonly ILogger<CompareController> _logger;
 
-        public CompareController(CompareService compareService)
+        public CompareController(
+            CompareService compareService,
+            ILogger<CompareController> logger)
         {
             _compareService = compareService;
+            _logger = logger;
         }
 
         public IActionResult Index()
@@ -59,7 +63,10 @@ namespace PostgresDbCompare.Controllers
             }
             catch (Exception ex)
             {
-                ModelState.AddModelError("", "Database comparison failed: " + ex.Message);
+                _logger.LogError(ex, "Database comparison failed");
+
+                ModelState.AddModelError("", "Database comparison failed. Please check connection details.");
+
                 return View("Index", model);
             }
         }
@@ -75,7 +82,10 @@ namespace PostgresDbCompare.Controllers
             List<string>? selectedFunctions)
         {
             if (string.IsNullOrEmpty(script) || string.IsNullOrEmpty(connection))
+            {
+                TempData["error"] = "Invalid migration request.";
                 return RedirectToAction("Index");
+            }
 
             try
             {
@@ -85,13 +95,21 @@ namespace PostgresDbCompare.Controllers
                     selectedViews ?? new List<string>(),
                     selectedFunctions ?? new List<string>());
 
+                if (string.IsNullOrWhiteSpace(filteredScript))
+                {
+                    TempData["error"] = "No objects selected for migration.";
+                    return RedirectToAction("Index");
+                }
+
                 await _compareService.ExecuteScript(filteredScript, connection);
 
-                TempData["msg"] = "Selected objects transferred successfully";
+                TempData["msg"] = "Selected objects transferred successfully.";
             }
             catch (Exception ex)
             {
-                TempData["msg"] = "Migration failed: " + ex.Message;
+                _logger.LogError(ex, "Migration failed");
+
+                TempData["error"] = "Migration failed. Please check logs or database permissions.";
             }
 
             return RedirectToAction("Index");
