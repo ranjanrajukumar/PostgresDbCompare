@@ -236,7 +236,7 @@ namespace PostgresDbCompare.Services
 
 
 
-        // -------------------------
+         // -------------------------
         // TRANSFER TABLE DATA
         // -------------------------
         public async Task TransferData(
@@ -267,26 +267,32 @@ namespace PostgresDbCompare.Services
                     while (await reader.ReadAsync())
                     {
                         var parameters = new List<string>();
-                        var cmd = new NpgsqlCommand();
-                        cmd.Connection = targetConn;
-                        cmd.Transaction = transaction;
+                        var cmd = new NpgsqlCommand
+                        {
+                            Connection = targetConn,
+                            Transaction = transaction
+                        };
 
                         for (int i = 0; i < reader.FieldCount; i++)
                         {
                             var paramName = "@p" + i;
+
                             parameters.Add(paramName);
 
-                            cmd.Parameters.AddWithValue(paramName,
+                            cmd.Parameters.AddWithValue(
+                                paramName,
                                 reader[i] == DBNull.Value ? DBNull.Value : reader[i]);
                         }
 
                         cmd.CommandText =
-                            $"INSERT INTO {table} ({string.Join(",", columns)}) VALUES ({string.Join(",", parameters)})";
+                            $"INSERT INTO {table} ({string.Join(",", columns)}) " +
+                            $"VALUES ({string.Join(",", parameters)}) " +
+                            $"ON CONFLICT DO NOTHING";
 
                         await cmd.ExecuteNonQueryAsync();
                     }
 
-                    reader.Close();
+                    await reader.CloseAsync();
                 }
 
                 await transaction.CommitAsync();
