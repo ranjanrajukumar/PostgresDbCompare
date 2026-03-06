@@ -60,9 +60,74 @@ namespace PostgresDbCompare.Services
         }
 
 
+        //private async Task<string> GenerateMigrationScript(
+        //    CompareResultModel result,
+        //    string sourceConnection)
+        //{
+        //    var script = new StringBuilder();
+
+        //    // SCHEMAS
+        //    foreach (var schema in result.MissingSchemas)
+        //    {
+        //        script.AppendLine($"CREATE SCHEMA IF NOT EXISTS {schema};");
+        //        script.AppendLine();
+        //    }
+
+        //    // TABLES
+        //    foreach (var table in result.MissingTables)
+        //    {
+        //        var parts = table.Split('.');
+
+        //        if (parts.Length != 2)
+        //            continue;
+
+        //        var schema = parts[0];
+        //        var tableName = parts[1];
+
+        //        script.AppendLine($"-- Create Table {table}");
+
+        //        var tableScript = await _databaseService.GetTableScript(
+        //            sourceConnection,
+        //            schema,
+        //            tableName);
+
+        //        if (!string.IsNullOrEmpty(tableScript))
+        //        {
+        //            // Remove sequence defaults
+        //            tableScript = Regex.Replace(
+        //                tableScript,
+        //                @"DEFAULT nextval\('.*?'\:\:regclass\)",
+        //                "",
+        //                RegexOptions.IgnoreCase);
+
+        //            script.AppendLine(tableScript);
+        //        }
+
+        //        script.AppendLine();
+        //    }
+
+        //    // VIEWS
+        //    foreach (var view in result.MissingViews)
+        //    {
+        //        script.AppendLine($"-- Create View {view}");
+        //        script.AppendLine($"CREATE VIEW {view} AS SELECT * FROM ...;");
+        //        script.AppendLine();
+        //    }
+
+        //    // FUNCTIONS
+        //    foreach (var fn in result.MissingFunctions)
+        //    {
+        //        script.AppendLine($"-- Create Function {fn}");
+        //        script.AppendLine($"CREATE FUNCTION {fn}() RETURNS void AS $$ BEGIN END; $$ LANGUAGE plpgsql;");
+        //        script.AppendLine();
+        //    }
+
+        //    return script.ToString();
+        //}
+
         private async Task<string> GenerateMigrationScript(
-            CompareResultModel result,
-            string sourceConnection)
+    CompareResultModel result,
+    string sourceConnection)
         {
             var script = new StringBuilder();
 
@@ -109,23 +174,57 @@ namespace PostgresDbCompare.Services
             // VIEWS
             foreach (var view in result.MissingViews)
             {
+                var parts = view.Split('.');
+
+                if (parts.Length != 2)
+                    continue;
+
+                var schema = parts[0];
+                var viewName = parts[1];
+
                 script.AppendLine($"-- Create View {view}");
-                script.AppendLine($"CREATE VIEW {view} AS SELECT * FROM ...;");
+
+                var viewScript = await _databaseService.GetViewScript(
+                    sourceConnection,
+                    schema,
+                    viewName);
+
+                if (!string.IsNullOrEmpty(viewScript))
+                {
+                    script.AppendLine(viewScript);
+                }
+
                 script.AppendLine();
             }
 
             // FUNCTIONS
             foreach (var fn in result.MissingFunctions)
             {
+                var parts = fn.Split('.');
+
+                if (parts.Length != 2)
+                    continue;
+
+                var schema = parts[0];
+                var functionName = parts[1];
+
                 script.AppendLine($"-- Create Function {fn}");
-                script.AppendLine($"CREATE FUNCTION {fn}() RETURNS void AS $$ BEGIN END; $$ LANGUAGE plpgsql;");
+
+                var functionScript = await _databaseService.GetFunctionScript(
+                    sourceConnection,
+                    schema,
+                    functionName);
+
+                if (!string.IsNullOrEmpty(functionScript))
+                {
+                    script.AppendLine(functionScript);
+                }
+
                 script.AppendLine();
             }
 
             return script.ToString();
         }
-
-
         public async Task ExecuteScript(string script, string connection)
         {
             using var conn = new NpgsqlConnection(connection);

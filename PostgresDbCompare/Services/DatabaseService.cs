@@ -1,4 +1,6 @@
 ﻿using Npgsql;
+using System.Data;
+using System.Linq;
 
 namespace PostgresDbCompare.Services
 {
@@ -30,7 +32,6 @@ namespace PostgresDbCompare.Services
         }
 
 
-
         // -------------------------
         // TABLES
         // -------------------------
@@ -55,7 +56,6 @@ namespace PostgresDbCompare.Services
 
             return tables;
         }
-
 
 
         // -------------------------
@@ -83,7 +83,6 @@ namespace PostgresDbCompare.Services
         }
 
 
-
         // -------------------------
         // FUNCTIONS
         // -------------------------
@@ -107,7 +106,6 @@ namespace PostgresDbCompare.Services
 
             return functions;
         }
-
 
 
         // -------------------------
@@ -135,7 +133,6 @@ namespace PostgresDbCompare.Services
         }
 
 
-
         // -------------------------
         // INDEXES
         // -------------------------
@@ -159,7 +156,6 @@ namespace PostgresDbCompare.Services
 
             return indexes;
         }
-
 
 
         // -------------------------
@@ -188,7 +184,6 @@ namespace PostgresDbCompare.Services
         }
 
 
-
         // -------------------------
         // GENERATE TABLE SCRIPT
         // -------------------------
@@ -212,11 +207,7 @@ namespace PostgresDbCompare.Services
                             THEN ' NOT NULL'
                             ELSE ''
                         END ||
-                        CASE 
-                            WHEN column_default IS NOT NULL 
-                            THEN ' DEFAULT ' || column_default
-                            ELSE ''
-                        END,
+                        COALESCE(' DEFAULT ' || column_default, ''),
                         E',\n'
                     ) || E'\n);'
                 FROM information_schema.columns
@@ -226,8 +217,8 @@ namespace PostgresDbCompare.Services
 
             using var cmd = new NpgsqlCommand(sql, conn);
 
-            cmd.Parameters.AddWithValue("@schema", schema);
-            cmd.Parameters.AddWithValue("@table", table);
+            cmd.Parameters.AddWithValue("schema", schema);
+            cmd.Parameters.AddWithValue("table", table);
 
             var result = await cmd.ExecuteScalarAsync();
 
@@ -235,8 +226,7 @@ namespace PostgresDbCompare.Services
         }
 
 
-
-         // -------------------------
+        // -------------------------
         // TRANSFER TABLE DATA
         // -------------------------
         public async Task TransferData(
@@ -267,7 +257,8 @@ namespace PostgresDbCompare.Services
                     while (await reader.ReadAsync())
                     {
                         var parameters = new List<string>();
-                        var cmd = new NpgsqlCommand
+
+                        var insertCmd = new NpgsqlCommand
                         {
                             Connection = targetConn,
                             Transaction = transaction
@@ -279,20 +270,18 @@ namespace PostgresDbCompare.Services
 
                             parameters.Add(paramName);
 
-                            cmd.Parameters.AddWithValue(
+                            insertCmd.Parameters.AddWithValue(
                                 paramName,
-                                reader[i] == DBNull.Value ? DBNull.Value : reader[i]);
+                                reader.IsDBNull(i) ? DBNull.Value : reader.GetValue(i));
                         }
 
-                        cmd.CommandText =
+                        insertCmd.CommandText =
                             $"INSERT INTO {table} ({string.Join(",", columns)}) " +
                             $"VALUES ({string.Join(",", parameters)}) " +
                             $"ON CONFLICT DO NOTHING";
 
-                        await cmd.ExecuteNonQueryAsync();
+                        await insertCmd.ExecuteNonQueryAsync();
                     }
-
-                    await reader.CloseAsync();
                 }
 
                 await transaction.CommitAsync();
@@ -302,6 +291,58 @@ namespace PostgresDbCompare.Services
                 await transaction.RollbackAsync();
                 throw;
             }
+        }
+
+
+        // -------------------------
+        // VIEW SCRIPT
+        // -------------------------
+        public async Task<string?> GetViewScript(string connection, string schema, string viewName)
+        {
+            using var conn = new NpgsqlConnection(connection);
+            await conn.OpenAsync();
+
+            var cmd = new NpgsqlCommand(@"
+                SELECT definition
+                FROM pg_views
+                WHERE schemaname = @schema
+                AND viewname = @viewName
+            ", conn);
+
+            cmd.Parameters.AddWithValue("schema", schema);
+            cmd.Parameters.AddWithValue("viewName", viewName);
+
+            var definition = await cmd.ExecuteScalarAsync();
+
+            if (definition == null)
+                return null;
+
+            return $"CREATE VIEW {schema}.{viewName} AS {definition};";
+        }
+
+
+        // -------------------------
+        // FUNCTION SCRIPT
+        // -------------------------
+        public async Task<string?> GetFunctionScript(string connection, string schema, string functionName)
+        {
+            using var conn = new NpgsqlConnection(connection);
+            await conn.OpenAsync();
+
+            var cmd = new NpgsqlCommand(@"
+                SELECT pg_get_functiondef(p.oid)
+                FROM pg_proc p
+                JOIN pg_namespace n ON p.pronamespace = n.oid
+                WHERE n.nspname = @schema
+                AND p.proname = @functionName
+            ", conn);
+
+            cmd.Parameters.AddWithValue("schema", schema);
+            cmd.Parameters.AddWithValue("functionName", functionName);
+
+            var result = await cmd.ExecuteScalarAsync();
+
+            return result?.ToString();
         }
     }
 }
