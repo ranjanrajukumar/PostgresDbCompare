@@ -2,215 +2,297 @@
 
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 
+<style>
+    .card-hover:hover {
+        transform: translateY(-4px);
+        transition: .2s;
+        box-shadow: 0 10px 20px rgba(0,0,0,.1)
+    }
+
+    .card-body-scroll {
+        max-height: 220px;
+        overflow-y: auto
+    }
+
+    textarea {
+        font-family: Consolas;
+        background: #0f172a;
+        color: #22c55e;
+        border-radius: 8px
+    }
+
+    .diff-box {
+        background: #111827;
+        color: #e5e7eb;
+        font-family: Consolas
+    }
+</style>
+
 <div class="container mt-4">
 
-    <h2 class="text-center text-primary mb-4">
-        Database Compare Result
+    <h2 class="text-center text-primary mb-3 fw-bold">
+        PostgreSQL Database Compare Result
     </h2>
 
-    <div class="row g-4">
-
-        <!-- Missing Tables -->
-        <div class="col-md-4">
-            <div class="card shadow border-0">
-                <div class="card-header bg-primary text-white">
-                    Missing Tables (@Model.MissingTables.Count)
-                </div>
-                <ul class="list-group list-group-flush">
-                    @if (Model.MissingTables.Any())
-                    {
-                        foreach (var item in Model.MissingTables)
-                        {
-                            <li class="list-group-item">@item</li>
-                        }
-                    }
-                    else
-                    {
-                        <li class="list-group-item text-success">
-                            No Missing Tables
-                        </li>
-                    }
-                </ul>
-            </div>
-        </div>
-
-
-        <!-- Missing Columns -->
-        <div class="col-md-4">
-            <div class="card shadow border-0">
-                <div class="card-header bg-secondary text-white">
-                    Missing Columns (@Model.MissingColumns.Count)
-                </div>
-                <ul class="list-group list-group-flush">
-                    @if (Model.MissingColumns.Any())
-                    {
-                        foreach (var item in Model.MissingColumns)
-                        {
-                            <li class="list-group-item">@item</li>
-                        }
-                    }
-                    else
-                    {
-                        <li class="list-group-item text-success">
-                            No Missing Columns
-                        </li>
-                    }
-                </ul>
-            </div>
-        </div>
-
-
-        <!-- Missing Views -->
-        <div class="col-md-4">
-            <div class="card shadow border-0">
-                <div class="card-header bg-warning">
-                    Missing Views (@Model.MissingViews.Count)
-                </div>
-                <ul class="list-group list-group-flush">
-                    @if (Model.MissingViews.Any())
-                    {
-                        foreach (var item in Model.MissingViews)
-                        {
-                            <li class="list-group-item">@item</li>
-                        }
-                    }
-                    else
-                    {
-                        <li class="list-group-item text-success">
-                            No Missing Views
-                        </li>
-                    }
-                </ul>
-            </div>
-        </div>
-
-
-        <!-- Missing Functions -->
-        <div class="col-md-4">
-            <div class="card shadow border-0">
-                <div class="card-header bg-danger text-white">
-                    Missing Functions (@Model.MissingFunctions.Count)
-                </div>
-                <ul class="list-group list-group-flush">
-                    @if (Model.MissingFunctions.Any())
-                    {
-                        foreach (var item in Model.MissingFunctions)
-                        {
-                            <li class="list-group-item">@item</li>
-                        }
-                    }
-                    else
-                    {
-                        <li class="list-group-item text-success">
-                            No Missing Functions
-                        </li>
-                    }
-                </ul>
-            </div>
-        </div>
-
-
-        <!-- Missing Indexes -->
-        <div class="col-md-4">
-            <div class="card shadow border-0">
-                <div class="card-header bg-info text-white">
-                    Missing Indexes (@Model.MissingIndexes.Count)
-                </div>
-                <ul class="list-group list-group-flush">
-                    @if (Model.MissingIndexes.Any())
-                    {
-                        foreach (var item in Model.MissingIndexes)
-                        {
-                            <li class="list-group-item">@item</li>
-                        }
-                    }
-                    else
-                    {
-                        <li class="list-group-item text-success">
-                            No Missing Indexes
-                        </li>
-                    }
-                </ul>
-            </div>
-        </div>
-
-
-        <!-- Missing Constraints -->
-        <div class="col-md-4">
-            <div class="card shadow border-0">
-                <div class="card-header bg-dark text-white">
-                    Missing Constraints (@Model.MissingConstraints.Count)
-                </div>
-                <ul class="list-group list-group-flush">
-                    @if (Model.MissingConstraints.Any())
-                    {
-                        foreach (var item in Model.MissingConstraints)
-                        {
-                            <li class="list-group-item">@item</li>
-                        }
-                    }
-                    else
-                    {
-                        <li class="list-group-item text-success">
-                            No Missing Constraints
-                        </li>
-                    }
-                </ul>
-            </div>
-        </div>
-
+    <div class="mb-3">
+        <input id="searchBox" class="form-control" placeholder="Search missing objects...">
     </div>
 
+    <form asp-controller="Compare" asp-action="TransferObjects" method="post">
 
-    <!-- Generated SQL Script -->
-    <div class="mt-5">
+        @Html.AntiForgeryToken()
 
-        <h4 class="text-primary">
-            Generated Migration Script
-        </h4>
+        <input type="hidden" name="script" id="scriptInput" value="@Model.GeneratedScript" />
+        <input type="hidden" name="connection" value="@ViewBag.TargetConnection" />
 
-        <textarea class="form-control" rows="10" readonly>
+        <div class="row g-4">
+
+            <!-- TABLES -->
+            <div class="col-lg-4 col-md-6">
+                <div class="card shadow border-0 card-hover">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between">
+                        <span>Tables</span>
+                        <span class="badge bg-light text-dark">@Model.MissingTables.Count</span>
+                    </div>
+
+                    <div class="card-body-scroll">
+                        <ul class="list-group list-group-flush object-list">
+
+                            @if (Model.MissingTables.Any())
+                            {
+                                foreach (var item in Model.MissingTables)
+                                {
+                                    <li class="list-group-item small">
+
+                                        <input type="checkbox" name="selectedTables" value="@item" checked />
+
+                                        <span class="object-name">@item</span>
+
+                                    </li>
+                                }
+                            }
+                            else
+                            {
+                                <li class="list-group-item text-success">No Missing Tables</li>
+                            }
+
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- VIEWS -->
+            <div class="col-lg-4 col-md-6">
+                <div class="card shadow border-0 card-hover">
+                    <div class="card-header bg-warning d-flex justify-content-between">
+                        <span>Views</span>
+                        <span class="badge bg-light text-dark">@Model.MissingViews.Count</span>
+                    </div>
+
+                    <div class="card-body-scroll">
+                        <ul class="list-group list-group-flush object-list">
+
+                            @if (Model.MissingViews.Any())
+                            {
+                                foreach (var item in Model.MissingViews)
+                                {
+                                    <li class="list-group-item small">
+
+                                        <input type="checkbox" name="selectedViews" value="@item" checked />
+
+                                        <span class="object-name">@item</span>
+
+                                    </li>
+                                }
+                            }
+                            else
+                            {
+                                <li class="list-group-item text-success">No Missing Views</li>
+                            }
+
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- FUNCTIONS -->
+            <div class="col-lg-4 col-md-6">
+                <div class="card shadow border-0 card-hover">
+                    <div class="card-header bg-danger text-white d-flex justify-content-between">
+                        <span>Functions</span>
+                        <span class="badge bg-light text-dark">@Model.MissingFunctions.Count</span>
+                    </div>
+
+                    <div class="card-body-scroll">
+                        <ul class="list-group list-group-flush object-list">
+
+                            @if (Model.MissingFunctions.Any())
+                            {
+                                foreach (var item in Model.MissingFunctions)
+                                {
+                                    <li class="list-group-item small">
+
+                                        <input type="checkbox" name="selectedFunctions" value="@item" checked />
+
+                                        <span class="object-name">@item</span>
+
+                                    </li>
+                                }
+                            }
+                            else
+                            {
+                                <li class="list-group-item text-success">No Missing Functions</li>
+                            }
+
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+
+        <!-- SQL SCRIPT -->
+        <div class="mt-5">
+
+            <h4 class="text-primary fw-bold">Generated Migration Script</h4>
+
+            <div class="mb-2">
+
+                <button type="button" class="btn btn-outline-primary btn-sm" onclick="copyScript()">
+                    Copy Script
+                </button>
+
+                <button type="button" class="btn btn-outline-success btn-sm" onclick="downloadScript()">
+                    Download SQL
+                </button>
+
+            </div>
+
+<textarea id="scriptArea" class="form-control" rows="12" readonly>
 @Model.GeneratedScript
-        </textarea>
+</textarea>
 
-    </div>
+        </div>
 
 
-    <!-- Transfer Button -->
-    <div class="text-center mt-4">
+        <!-- LIVE DIFF VIEWER -->
+        <div class="mt-5">
 
-        <form asp-controller="Compare" asp-action="TransferObjects" method="post">
+            <h4 class="text-primary fw-bold">Live Script Diff Viewer</h4>
 
-            @Html.AntiForgeryToken()
+            <div class="row">
 
-            <!-- Send Script -->
-            <input type="hidden"
-                   name="script"
-                   value="@Model.GeneratedScript" />
+                <div class="col-md-6">
+                    <label>Source Script</label>
+<textarea id="sourceScript" class="form-control diff-box" rows="10">@Model.GeneratedScript</textarea>
+                </div>
 
-            <!-- Send Target Connection -->
-            <input type="hidden"
-                   name="connection"
-                   value="@ViewBag.TargetConnection" />
+                <div class="col-md-6">
+                    <label>Target Script (paste here)</label>
+<textarea id="targetScript" class="form-control diff-box" rows="10"></textarea>
+                </div>
 
-            <button type="submit"
-                    class="btn btn-success btn-lg px-5">
+            </div>
 
-                🚀 Transfer Missing Objects
+            <div class="text-center mt-2">
+                <button class="btn btn-outline-dark btn-sm" onclick="showDiff()">
+                    Show Diff
+                </button>
+            </div>
 
+<pre id="diffResult" class="diff-box p-3 mt-3"></pre>
+
+        </div>
+
+
+        <!-- ACTION BUTTONS -->
+        <div class="text-center mt-4">
+
+            <button type="submit" class="btn btn-success btn-lg px-5 shadow">
+                🚀 Transfer Selected Objects
             </button>
 
-        </form>
+            <a asp-controller="Compare" asp-action="Index"
+               class="btn btn-secondary btn-lg ms-3 shadow">
+                Back
+            </a>
 
+        </div>
 
-        <a asp-controller="Compare"
-           asp-action="Index"
-           class="btn btn-secondary btn-lg ms-3">
-
-            Back
-
-        </a>
-
-    </div>
+    </form>
 
 </div>
+
+
+<script>
+
+    // SEARCH FILTER
+    document.getElementById("searchBox").addEventListener("keyup", function () {
+
+    var value=this.value.toLowerCase();
+
+    document.querySelectorAll(".object-name").forEach(function(el){
+
+    el.parentElement.style.display=
+    el.textContent.toLowerCase().includes(value) ? "" : "none";
+
+    });
+
+    });
+
+
+    // COPY SCRIPT
+    function copyScript(){
+
+    var text=document.getElementById("scriptArea");
+
+    text.select();
+    document.execCommand("copy");
+
+    alert("Script copied!");
+
+    }
+
+
+    // DOWNLOAD SCRIPT
+    function downloadScript(){
+
+    var script=document.getElementById("scriptArea").value;
+
+    var blob=new Blob([script],{type:"text/sql"});
+
+    var link=document.createElement("a");
+
+    link.href=URL.createObjectURL(blob);
+    link.download="migration_script.sql";
+
+    link.click();
+
+    }
+
+
+    // SIMPLE DIFF VIEWER
+    function showDiff(){
+
+    var src=document.getElementById("sourceScript").value.split("\n");
+    var tgt=document.getElementById("targetScript").value.split("\n");
+
+    var result="";
+
+    for(let i=0;i<src.length;i++){
+
+    if(src[i]!==tgt[i])
+    result+="❌ "+src[i]+"\n";
+    else
+    result+="✔ "+src[i]+"\n";
+
+    }
+
+    document.getElementById("diffResult").textContent=result;
+
+    }
+
+</script>

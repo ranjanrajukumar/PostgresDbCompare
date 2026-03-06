@@ -53,6 +53,7 @@ namespace PostgresDbCompare.Services
             var targetFunctions = await _databaseService.GetFunctions(target);
             result.MissingFunctions = sourceFunctions.Except(targetFunctions).ToList();
 
+            // Generate migration script
             result.GeneratedScript = await GenerateMigrationScript(result, source);
 
             return result;
@@ -92,7 +93,7 @@ namespace PostgresDbCompare.Services
 
                 if (!string.IsNullOrEmpty(tableScript))
                 {
-                    // Remove problematic nextval sequence defaults
+                    // Remove sequence defaults
                     tableScript = Regex.Replace(
                         tableScript,
                         @"DEFAULT nextval\('.*?'\:\:regclass\)",
@@ -132,6 +133,40 @@ namespace PostgresDbCompare.Services
 
             using var cmd = new NpgsqlCommand(script, conn);
             await cmd.ExecuteNonQueryAsync();
+        }
+
+
+        // Filter only selected objects
+        public string FilterScript(
+            string script,
+            List<string>? tables,
+            List<string>? views,
+            List<string>? functions)
+        {
+            tables ??= new List<string>();
+            views ??= new List<string>();
+            functions ??= new List<string>();
+
+            var result = new StringBuilder();
+            var blocks = script.Split("-- Create");
+
+            foreach (var block in blocks)
+            {
+                if (block.Contains("SCHEMA"))
+                {
+                    result.AppendLine(block);
+                    continue;
+                }
+
+                if (tables.Any(t => block.Contains(t)) ||
+                    views.Any(v => block.Contains(v)) ||
+                    functions.Any(f => block.Contains(f)))
+                {
+                    result.AppendLine("-- Create" + block);
+                }
+            }
+
+            return result.ToString();
         }
     }
 }

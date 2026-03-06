@@ -67,14 +67,32 @@ namespace PostgresDbCompare.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> TransferObjects(string script, string connection)
+        public async Task<IActionResult> TransferObjects(
+            string script,
+            string connection,
+            List<string>? selectedTables,
+            List<string>? selectedViews,
+            List<string>? selectedFunctions)
         {
-            if (string.IsNullOrEmpty(script))
+            if (string.IsNullOrEmpty(script) || string.IsNullOrEmpty(connection))
                 return RedirectToAction("Index");
 
-            await _compareService.ExecuteScript(script, connection);
+            try
+            {
+                var filteredScript = _compareService.FilterScript(
+                    script,
+                    selectedTables ?? new List<string>(),
+                    selectedViews ?? new List<string>(),
+                    selectedFunctions ?? new List<string>());
 
-            TempData["msg"] = "Objects transferred successfully";
+                await _compareService.ExecuteScript(filteredScript, connection);
+
+                TempData["msg"] = "Selected objects transferred successfully";
+            }
+            catch (Exception ex)
+            {
+                TempData["msg"] = "Migration failed: " + ex.Message;
+            }
 
             return RedirectToAction("Index");
         }
